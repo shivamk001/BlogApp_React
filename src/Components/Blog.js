@@ -1,27 +1,40 @@
-import { useState, useRef, useEffect, useReducer } from "react";
+import { useState, useRef, useEffect } from "react";
+import { db } from "../firebaseInit";
+import { collection, doc, addDoc, onSnapshot, deleteDoc } from "firebase/firestore"; 
 
-function blogsReducer(state, action){
-    switch(action.type){
-        case 'ADD':
-            return [action.blog, ...state]
-        case 'REMOVE':
-            return state.filter((blog, index)=>index !== action.index)
-        default:
-            return []
-    }
-}
+// Add a new document with a generated id.
+
+
+// function blogsReducer(state, action){
+//     switch(action.type){
+//         case 'ADD':
+//             return [action.blog, ...state]
+//         case 'REMOVE':
+//             return state.filter((blog, index)=>index !== action.index)
+//         default:
+//             return []
+//     }
+// }
 
 //Blogging App using Hooks
 export default function Blog(){
     let [formData, setFormData]=useState({title:'', content:''})
-    let [blogs, dispatch]=useReducer(blogsReducer, [])
+    let [blogs, setBlogs]=useState([])
+    //let [blogs, dispatch]=useReducer(blogsReducer, [])
+
     const titleRef=useRef(null);
     useEffect(()=>{titleRef.current.focus()},[])
+
     //Passing the synthetic event as argument to stop refreshing the page on submi
-    function handleSubmit(e){
+    async function handleSubmit(e){
         e.preventDefault();
-        
-        dispatch({type:'ADD', blog:{title: formData.title, content: formData.content}})
+        const docRef = await addDoc(collection(db, "blogs"), {
+            title: formData.title,
+            content: formData.content,
+            createdOn: new Date()
+          });
+        console.log("Document written with ID: ", docRef.id);
+        //dispatch({type:'ADD', blog:{title: formData.title, content: formData.content}})
         changeTitle()
         setFormData({title:'', content:''})
         titleRef.current.focus()
@@ -31,19 +44,28 @@ export default function Blog(){
         document.title=formData.title
     }
 
-    function deleteBlog(i){
-        dispatch({type: 'REMOVE', index: i})
+    async function deleteBlog(id){
+        // dispatch({type: 'REMOVE', index: i})
+        let docRef=doc(db, "blogs", id);
+        await deleteDoc(docRef);
     }
     
-    useEffect(()=>{document.title='Abc'},[])
+
+
+
     useEffect(()=>{
-        if(blogs.length && blogs[0].title){
-            document.title=blogs[0].title
-        }
-        else{
-            document.title='No Blogs'
-        }
-    }, [blogs])
+
+        onSnapshot(collection(db, 'blogs'), (snapshot)=>{
+            const blogs=snapshot.docs.map((doc)=>{
+                return {
+                    id: doc.id,
+                    ...doc.data()
+                }
+            })
+            console.log(blogs)
+            setBlogs(blogs)
+        })
+    },[])
     //title set to 'No Blogs' because of order of execution of useEffect
     
     return(
@@ -93,7 +115,7 @@ export default function Blog(){
             (<div key={i} className="blog">
                 <h3>{blog.title}</h3>
                 <p>{blog.content}</p>
-                <button onClick={()=>{deleteBlog(i)}}>Delete</button>
+                <button onClick={()=>{deleteBlog(blog.id)}}>Delete</button>
             </div>
             )
         )}
